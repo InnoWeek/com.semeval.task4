@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 
 public final class UrlRemovingPreprocessor implements TweetPreprocessor {
     private static final String REGEX_URL = "\\b(https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]";
-    ;
+
     private final Pattern urlPattern;
 
     private UrlRemovingPreprocessor() {
