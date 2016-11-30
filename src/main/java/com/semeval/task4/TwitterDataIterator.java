@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -26,36 +25,53 @@ public final class TwitterDataIterator implements DataSetIterator {
     private static final String LABEL_NEGATIVE = "-1";
     private static final String LABEL_POSITIVE = "1";
 
-    private final Collection<String[]> tweets;
+    private final Collection<Tweet> allTweets;
     private final WordVectors wordVectors;
     private final int batchSize;
     private final int vectorSize;
     private final TokenizerFactory tokenizerFactory;
-    private Iterator<String[]> tweetIterator;
+    private Iterator<Tweet> tweetIterator;
     private int cursor = 0;
 
 
     public TwitterDataIterator(Path dataPath, WordVectors wordVectors, int vectorSize, int batchSize) throws IOException {
-        this.tweets = Files.readAllLines(dataPath)
+        this.allTweets = Files.readAllLines(dataPath)
                 .stream()
                 .map(s -> s.split("\t"))
+                .map(s -> new Tweet(s[2], getExpectedSentiment(s[0])))
                 .collect(Collectors.toList());
-        tweetIterator = tweets.iterator();
+        tweetIterator = allTweets.iterator();
         this.wordVectors = wordVectors;
         this.vectorSize = vectorSize;
         this.batchSize = batchSize;
         tokenizerFactory = new DefaultTokenizerFactory();
     }
 
+    private static Tweet tweetFromRow(String[] row) {
+        final String text = row[2];
+        final Sentiment expectedSentiment = getExpectedSentiment(row[0]);
+        return new Tweet(text, expectedSentiment);
+    }
+
+    private static Sentiment getExpectedSentiment(String sentiment) {
+        if (sentiment.equalsIgnoreCase(LABEL_NEGATIVE)) {
+            return Sentiment.Negative;
+        } else if (sentiment.equalsIgnoreCase(LABEL_POSITIVE)) {
+            return Sentiment.Positive;
+        } else {
+            throw new IllegalStateException("Unknown sentiment: " + sentiment);
+        }
+    }
+
+
     @Override
     public DataSet next(int num) {
-        final List<String[]> tweets = readTweets(num);
-
-        final List<List<String>> allTokens = new ArrayList<>(tweets.size());
+        final List<Tweet> tweets = readTweets(num);
+        final List<List<String>> tokenizedTweets = new ArrayList<>(tweets.size());
         int maxLength = 0;
-        for (String[] tweet : tweets) {
-            final List<String> tokens = tokenizeTweet(tweet[1]);
-            allTokens.add(tokens);
+        for (Tweet tweet : tweets) {
+            final List<String> tokens = tokenizeTweet(tweet.getText());
+            tokenizedTweets.add(tokens);
             maxLength = Math.max(maxLength, tokens.size());
         }
 
@@ -64,7 +80,7 @@ public final class TwitterDataIterator implements DataSetIterator {
         //We need one label for each classification result - positive/negative
         INDArray labels = Nd4j.create(tweets.size(), NUMBER_OF_LABELS, maxLength);
 
-        //Because the tweets have different lengths, we need to pad the data.
+        //Because the allTweets have different lengths, we need to pad the data.
         //"1" means that the data is available, "0" means it's just padding
         INDArray featuresMask = Nd4j.zeros(tweets.size(), maxLength);
         INDArray labelsMask = Nd4j.zeros(tweets.size(), maxLength);
@@ -72,7 +88,8 @@ public final class TwitterDataIterator implements DataSetIterator {
         //Fill in the data into the vectors
         int[] featureMaskIndexes = new int[2];
         for (int tweetIndex = 0; tweetIndex < tweets.size(); tweetIndex++) {
-            final List<String> tokens = allTokens.get(tweetIndex);
+            final Tweet tweet = tweets.get(tweetIndex);
+            final List<String> tokens = tokenizedTweets.get(tweetIndex);
             featureMaskIndexes[0] = tweetIndex;
 
             //Add word vector for each token
@@ -90,7 +107,7 @@ public final class TwitterDataIterator implements DataSetIterator {
                 featuresMask.putScalar(featureMaskIndexes, 1.0);
             }
 
-            final int labelIndex = getLabelIndex(tweets, tweetIndex);
+            final int labelIndex = getLabelIndex(tweet);
             int lastIdx = tokens.size();
 
             //Mark either positive/negative as 1.0 (i.e set the flag)
@@ -110,8 +127,8 @@ public final class TwitterDataIterator implements DataSetIterator {
         return new DataSet(features, labels, featuresMask, labelsMask);
     }
 
-    private List<String[]> readTweets(int numberOfTweets) {
-        final List<String[]> data = new ArrayList<>(numberOfTweets);
+    private List<Tweet> readTweets(int numberOfTweets) {
+        final List<Tweet> data = new ArrayList<>(numberOfTweets);
         for (int i = 0; i < numberOfTweets && tweetIterator.hasNext(); i++) {
             data.add(tweetIterator.next());
             cursor++;
@@ -132,23 +149,21 @@ public final class TwitterDataIterator implements DataSetIterator {
         return tokens;
     }
 
-    private int getLabelIndex(List<String[]> tweets, int tweetIndex) {
-        final int labelIndex;
-        final String label = tweets.get(tweetIndex)[0];
-        if (label.equalsIgnoreCase(LABEL_NEGATIVE)) {
-            labelIndex = 0;
-        } else if (label.equalsIgnoreCase(LABEL_POSITIVE)) {
-            labelIndex = 1;
-        } else {
-            throw new IllegalStateException("Unknown label: " + label);
+    private int getLabelIndex(Tweet tweet) {
+        final Sentiment sentiment = tweet.getSentiment();
+        switch (sentiment) {
+            case Positive:
+                return 1;
+            case Negative:
+                return 0;
+            default:
+                throw new IllegalStateException("Unknown sentiment: " + sentiment);
         }
-
-        return labelIndex;
     }
 
     @Override
     public int totalExamples() {
-        return tweets.size();
+        return allTweets.size();
     }
 
     @Override
@@ -173,7 +188,7 @@ public final class TwitterDataIterator implements DataSetIterator {
 
     @Override
     public void reset() {
-        tweetIterator = tweets.iterator();
+        tweetIterator = allTweets.iterator();
         cursor = 0;
     }
 
