@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,8 +23,8 @@ import java.util.stream.Collectors;
 public final class TwitterDataIterator implements DataSetIterator {
     private static final Logger logger = LoggerFactory.getLogger(TwitterDataIterator.class);
     private static final int NUMBER_OF_LABELS = 2;
-    private static final String LABEL_NEGATIVE = "negative";
-    private static final String LABEL_POSITIVE = "positive";
+    private static final String LABEL_NEGATIVE = "-1";
+    private static final String LABEL_POSITIVE = "1";
 
     private final Collection<String[]> tweets;
     private final WordVectors wordVectors;
@@ -34,22 +35,21 @@ public final class TwitterDataIterator implements DataSetIterator {
     private int cursor = 0;
 
 
-    public TwitterDataIterator(String dataPath, WordVectors wordVectors, int batchSize) throws IOException {
-        this.tweets = Files.readAllLines(Paths.get(dataPath))
+    public TwitterDataIterator(Path dataPath, WordVectors wordVectors, int vectorSize, int batchSize) throws IOException {
+        this.tweets = Files.readAllLines(dataPath)
                 .stream()
                 .map(s -> s.split("\t"))
                 .collect(Collectors.toList());
         tweetIterator = tweets.iterator();
         this.wordVectors = wordVectors;
+        this.vectorSize = vectorSize;
         this.batchSize = batchSize;
-        this.vectorSize = wordVectors.lookupTable().layerSize();
         tokenizerFactory = new DefaultTokenizerFactory();
     }
 
     @Override
     public DataSet next(int num) {
         final List<String[]> tweets = readTweets(num);
-
 
         final List<List<String>> allTokens = new ArrayList<>(tweets.size());
         int maxLength = 0;
@@ -204,7 +204,7 @@ public final class TwitterDataIterator implements DataSetIterator {
 
     @Override
     public List<String> getLabels() {
-        return Arrays.asList("negative","positive");
+        return Arrays.asList("negative", "positive");
     }
 
     @Override
