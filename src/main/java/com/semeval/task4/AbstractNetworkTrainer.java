@@ -72,6 +72,12 @@ public abstract class AbstractNetworkTrainer {
              */
             Stream<String[]> preProcessingPipeline = lines.map(l -> l.split("\t+"))
                     /**
+                     * Some of the tweets are missing and "not available"
+                     * is set instead of teh tweet text. They must be removed
+                     */
+                    .filter(l -> !l[3].equalsIgnoreCase("not available"))
+
+                    /**
                      * Make sure the topic is in lower case
                      */
                     .peek(l -> l[1] = l[1].toLowerCase(Locale.ENGLISH))

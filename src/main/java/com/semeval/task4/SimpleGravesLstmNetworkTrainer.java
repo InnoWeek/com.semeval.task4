@@ -28,12 +28,15 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
     @Override
     protected MultiLayerNetwork createNetwork() {
         final MultiLayerConfiguration configuration = new NeuralNetConfiguration.Builder()
-                .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
+                .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
+                .iterations(1)
                 .updater(Updater.RMSPROP)
-                .regularization(true).l2(1e-5)
+                .regularization(true)
+                .l2(1e-5)
                 .weightInit(WeightInit.XAVIER)
-                .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue).gradientNormalizationThreshold(1.0)
-                .learningRate(0.18)
+                .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)
+                .gradientNormalizationThreshold(1.0)
+                .learningRate(0.15)
                 .list()
                 .layer(0, new GravesLSTM.Builder()
                         .nIn(vectorSize)
@@ -76,14 +79,13 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
         trainer.addPreprocessor(new RepeatingCharsPreprocessor());
         trainer.addPreprocessor(new ToLowerCasePreprocesor());
 
-        trainer.train(1, 20);
-        System.out.println(trainer.evaluate(20).stats());
-        trainer.train(1, 20);
-        System.out.println(trainer.evaluate(20).stats());
-        trainer.train(1, 20);
-        System.out.println(trainer.evaluate(20).stats());
+        for (int i = 0; i < 12; i++) {
+            trainer.train(1, 20);
+            System.out.println("Epoch: " + i);
+            System.out.println(trainer.evaluate(20).stats());
+        }
 
-        try (OutputStream rawOut = Files.newOutputStream(Paths.get("network.out"))) {
+        try (OutputStream rawOut = Files.newOutputStream(Paths.get("C:\\Users\\i304680\\git\\network.out"))) {
             trainer.saveNetwork(rawOut);
         }
     }
