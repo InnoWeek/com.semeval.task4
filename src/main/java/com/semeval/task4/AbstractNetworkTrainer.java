@@ -28,7 +28,7 @@ public abstract class AbstractNetworkTrainer {
     private final Path trainSet;
     private final Path testSet;
     private final WordVectors wordVectors;
-    private final int vectorSize;
+    protected final int vectorSize;
 
     private MultiLayerNetwork network;
     private boolean trainingStarted;
@@ -123,6 +123,7 @@ public abstract class AbstractNetworkTrainer {
             out.write(row[1]);
             out.write("\t");
             out.write(row[3]);
+            out.write("\n");
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -159,7 +160,10 @@ public abstract class AbstractNetworkTrainer {
                 testSetIterator = new TwitterDataIterator(preProcessedTestSet, wordVectors, vectorSize, batchSize);
             }
 
-            return network.evaluate(testSetIterator);
+
+            final Evaluation evaluation = network.evaluate(testSetIterator);
+            testSetIterator.reset();
+            return evaluation;
         } catch (IOException ex) {
             throw new TrainingException(ex);
         }
