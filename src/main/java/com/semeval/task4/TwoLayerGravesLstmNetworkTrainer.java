@@ -31,7 +31,7 @@ public final class TwoLayerGravesLstmNetworkTrainer extends AbstractNetworkTrain
         final MultiLayerConfiguration configuration = new NeuralNetConfiguration.Builder()
                 .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
                 .iterations(1)
-                .updater(Updater.ADAGRAD)
+                .updater(Updater.RMSPROP)
                 .regularization(true)
                 .l2(1e-5)
                 .weightInit(WeightInit.XAVIER)
