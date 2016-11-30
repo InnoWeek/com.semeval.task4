@@ -12,6 +12,7 @@ import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
+import org.nd4j.linalg.lossfunctions.LossFunctions.LossFunction;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,6 +28,7 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
 
     @Override
     protected MultiLayerNetwork createNetwork() {
+        final int nOut = Math.min(vectorSize, 200);
         final MultiLayerConfiguration configuration = new NeuralNetConfiguration.Builder()
                 .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
                 .iterations(1)
@@ -40,13 +42,13 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
                 .list()
                 .layer(0, new GravesLSTM.Builder()
                         .nIn(vectorSize)
-                        .nOut(200)
+                        .nOut(nOut)
                         .activation("softsign")
                         .build())
                 .layer(1, new RnnOutputLayer.Builder()
                         .activation("softmax")
-                        .lossFunction(LossFunctions.LossFunction.MCXENT)
-                        .nIn(200)
+                        .lossFunction(LossFunction.MCXENT)
+                        .nIn(nOut)
                         .nOut(2)
                         .build())
                 .pretrain(false)
@@ -80,8 +82,10 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
         trainer.addPreprocessor(new ToLowerCasePreprocesor());
 
         for (int i = 0; i < 12; i++) {
+            System.out.println("\nEpoch: " + i);
+            System.out.println("Training...");
             trainer.train(1, 20);
-            System.out.println("Epoch: " + i);
+            System.out.println("Evaluating...");
             System.out.println(trainer.evaluate(20).stats());
         }
 
