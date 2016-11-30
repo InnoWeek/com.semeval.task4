@@ -1,14 +1,15 @@
 package com.semeval.task4;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 class HashTagPreprocessorTest {
     private HashTagPreprocessor preprocessor;
 
-    @BeforeEach
+    @Before
     public void beforeEach() throws Exception {
         preprocessor = new HashTagPreprocessor();
     }
