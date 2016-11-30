@@ -162,7 +162,7 @@ public abstract class AbstractNetworkTrainer {
 
         try {
             if (null == testSetIterator) {
-                final Path preProcessedTestSet = preProcessDataSet(trainSet);
+                final Path preProcessedTestSet = preProcessDataSet(testSet);
                 testSetIterator = new TwitterDataIterator(preProcessedTestSet, wordVectors, vectorSize, batchSize);
             }
 
