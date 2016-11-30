@@ -8,7 +8,7 @@ public final class UrlRemovingPreprocessor implements TweetPreprocessor {
 
     private final Pattern urlPattern;
 
-    private UrlRemovingPreprocessor() {
+    public UrlRemovingPreprocessor() {
         urlPattern = Pattern.compile(REGEX_URL);
     }
 
