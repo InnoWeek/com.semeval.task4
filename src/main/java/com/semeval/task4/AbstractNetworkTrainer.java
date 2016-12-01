@@ -27,20 +27,16 @@ public abstract class AbstractNetworkTrainer {
     private final List<TweetPreprocessor> preprocessors;
     private final Path trainSet;
     private final Path testSet;
-    private final WordVectors wordVectors;
-    protected final int vectorSize;
 
     private MultiLayerNetwork network;
     private boolean trainingStarted;
     private DataSetIterator trainSetIterator;
     private DataSetIterator testSetIterator;
 
-    public AbstractNetworkTrainer(Path trainSet, Path testSet, WordVectors wordVectors, int vectorSize) {
+    public AbstractNetworkTrainer(Path trainSet, Path testSet) {
         preprocessors = new ArrayList<>();
         this.trainSet = trainSet;
         this.testSet = testSet;
-        this.wordVectors = wordVectors;
-        this.vectorSize = vectorSize;
 
         if (!Files.isRegularFile(trainSet)) {
             throw new IllegalArgumentException("The train set must be a file: " + testSet);
@@ -49,13 +45,14 @@ public abstract class AbstractNetworkTrainer {
         if (!Files.isReadable(testSet)) {
             throw new IllegalArgumentException("The test set must be a file: " + testSet);
         }
-
-        if (vectorSize <= 0) {
-            throw new IllegalArgumentException("Invalid vector size: " + vectorSize);
-        }
     }
 
     protected abstract MultiLayerNetwork createNetwork();
+
+    protected abstract DataSetIterator createTrainSetIterator(Path trainSet) throws IOException;
+
+    protected abstract DataSetIterator createTestSetIterator(Path testSet) throws IOException;
+
 
     public final void addPreprocessor(TweetPreprocessor preprocessor) {
         if (trainingStarted) {
@@ -140,7 +137,7 @@ public abstract class AbstractNetworkTrainer {
         try {
             if (!trainingStarted) {
                 final Path preProcessedTrainSet = preProcessDataSet(trainSet);
-                trainSetIterator = new TwitterDataIterator(preProcessedTrainSet, wordVectors, vectorSize, batchSize);
+                trainSetIterator = createTrainSetIterator(preProcessedTrainSet);
                 network = createNetwork();
                 trainingStarted = true;
             }
@@ -163,9 +160,8 @@ public abstract class AbstractNetworkTrainer {
         try {
             if (null == testSetIterator) {
                 final Path preProcessedTestSet = preProcessDataSet(testSet);
-                testSetIterator = new TwitterDataIterator(preProcessedTestSet, wordVectors, vectorSize, batchSize);
+                testSetIterator = createTestSetIterator(preProcessedTestSet);
             }
-
 
             final Evaluation evaluation = network.evaluate(testSetIterator);
             testSetIterator.reset();

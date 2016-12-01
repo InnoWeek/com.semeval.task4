@@ -11,6 +11,7 @@ import org.deeplearning4j.nn.conf.layers.GravesLSTM;
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
+import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
 import org.nd4j.linalg.lossfunctions.LossFunctions.LossFunction;
 
@@ -22,8 +23,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer {
-    private SimpleGravesLstmNetworkTrainer(Path trainSet, Path testSet, WordVectors wordVectors, int vectorSize) {
-        super(trainSet, testSet, wordVectors, vectorSize);
+    private final WordVectors wordVectors;
+    protected final int vectorSize;
+
+    public SimpleGravesLstmNetworkTrainer(Path trainSet, Path testSet, WordVectors wordVectors, int vectorSize) {
+        super(trainSet, testSet);
+        this.wordVectors = wordVectors;
+        this.vectorSize = vectorSize;
     }
 
     @Override
@@ -58,6 +64,16 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
         MultiLayerNetwork multiLayerNetwork = new MultiLayerNetwork(configuration);
         multiLayerNetwork.init();
         return multiLayerNetwork;
+    }
+
+    @Override
+    protected DataSetIterator createTrainSetIterator(Path trainSet) throws IOException {
+        return new TwitterDataIterator(trainSet, wordVectors, vectorSize, 50);
+    }
+
+    @Override
+    protected DataSetIterator createTestSetIterator(Path testSet) throws IOException {
+        return new TwitterDataIterator(testSet, wordVectors, vectorSize, 50);
     }
 
     public static void main(String[] args) throws TrainingException, IOException {
