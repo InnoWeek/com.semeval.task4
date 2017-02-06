@@ -3,16 +3,14 @@ package com.semeval.task4;
 import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
-import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 import org.deeplearning4j.nn.conf.Updater;
-import org.deeplearning4j.nn.conf.layers.GravesLSTM;
+import org.deeplearning4j.nn.conf.layers.GravesBidirectionalLSTM;
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
-import org.nd4j.linalg.lossfunctions.LossFunctions;
 import org.nd4j.linalg.lossfunctions.LossFunctions.LossFunction;
 
 import java.io.File;
@@ -22,11 +20,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer {
+public final class RnnNetworkTrainer extends AbstractNetworkTrainer {
+    private static final int INDEX_WORD_VECTORS_PATH = 0;
+    private static final int INDEX_WORD_VECTORS_SIZE = 1;
+    private static final int INDEX_TRAIN_SET_PATH = 2;
+    private static final int INDEX_TEST_SET_PATH = 3;
+    private static final int INDEX_NETWORK_SAVE_PATH = 4;
+
     private final WordVectors wordVectors;
     protected final int vectorSize;
 
-    public SimpleGravesLstmNetworkTrainer(Path trainSet, Path testSet, WordVectors wordVectors, int vectorSize) {
+    public RnnNetworkTrainer(Path trainSet, Path testSet, WordVectors wordVectors, int vectorSize) {
         super(trainSet, testSet);
         this.wordVectors = wordVectors;
         this.vectorSize = vectorSize;
@@ -42,16 +46,29 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
                 .regularization(true)
                 .l2(1e-5)
                 .weightInit(WeightInit.XAVIER)
-                .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)
-                .gradientNormalizationThreshold(1.0)
                 .learningRate(0.15)
                 .list()
-                .layer(0, new GravesLSTM.Builder()
+                .layer(0, new GravesBidirectionalLSTM.Builder()
                         .nIn(vectorSize)
                         .nOut(nOut)
                         .activation("softsign")
                         .build())
-                .layer(1, new RnnOutputLayer.Builder()
+                .layer(1, new GravesBidirectionalLSTM.Builder()
+                        .nIn(vectorSize)
+                        .nOut(nOut)
+                        .activation("softsign")
+                        .build())
+                .layer(2, new GravesBidirectionalLSTM.Builder()
+                        .nIn(vectorSize)
+                        .nOut(nOut)
+                        .activation("softsign")
+                        .build())
+                .layer(3, new GravesBidirectionalLSTM.Builder()
+                        .nIn(vectorSize)
+                        .nOut(nOut)
+                        .activation("softsign")
+                        .build())
+                .layer(4, new RnnOutputLayer.Builder()
                         .activation("softmax")
                         .lossFunction(LossFunction.MCXENT)
                         .nIn(nOut)
@@ -77,19 +94,23 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
     }
 
     public static void main(String[] args) throws TrainingException, IOException {
-        System.out.println("Loading word vectors (" + args[0] + ") ....");
-        System.out.println("Vector size: " + args[1]);
-        final int vectorSize = Integer.parseInt(args[1]);
-        WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(args[0]));
+        final String argWordVectorsPath = args[INDEX_WORD_VECTORS_PATH];
+        final String argVectorSize = args[INDEX_WORD_VECTORS_SIZE];
 
-        final Path trainSet = Paths.get(args[2]);
-        final Path testSet = Paths.get(args[3]);
+        System.out.println("Loading word vectors (" + argWordVectorsPath + ") ....");
+        System.out.println("Vector size: " + argVectorSize);
+
+        final int vectorSize = Integer.parseInt(argVectorSize);
+        WordVectors wordVectors = WordVectorSerializer.loadTxtVectors(new File(argWordVectorsPath));
+
+        final Path trainSet = Paths.get(args[INDEX_TRAIN_SET_PATH]);
+        final Path testSet = Paths.get(args[INDEX_TEST_SET_PATH]);
 
         System.out.println("Train set: " + trainSet);
         System.out.println("Creating trainer...");
         System.out.println("Test set: " + testSet);
 
-        final SimpleGravesLstmNetworkTrainer trainer = new SimpleGravesLstmNetworkTrainer(trainSet, testSet, wordVectors, vectorSize);
+        final RnnNetworkTrainer trainer = new RnnNetworkTrainer(trainSet, testSet, wordVectors, vectorSize);
         trainer.addPreprocessor(new HashTagPreprocessor());
         trainer.addPreprocessor(new UrlRemovingPreprocessor());
         trainer.addPreprocessor(new ReplaceEmoticonsPreprocessor());
@@ -97,15 +118,15 @@ public final class SimpleGravesLstmNetworkTrainer extends AbstractNetworkTrainer
         trainer.addPreprocessor(new RepeatingCharsPreprocessor());
         trainer.addPreprocessor(new ToLowerCasePreprocesor());
 
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < 24; i++) {
             System.out.println("\nEpoch: " + i);
             System.out.println("Training...");
-            trainer.train(1, 20);
+            trainer.train(1);
             System.out.println("Evaluating...");
-            System.out.println(trainer.evaluate(20).stats());
+            System.out.println(trainer.evaluate().stats());
         }
 
-        try (OutputStream rawOut = Files.newOutputStream(Paths.get("C:\\Users\\i304680\\git\\network.out"))) {
+        try (OutputStream rawOut = Files.newOutputStream(Paths.get(args[INDEX_NETWORK_SAVE_PATH]))) {
             trainer.saveNetwork(rawOut);
         }
     }

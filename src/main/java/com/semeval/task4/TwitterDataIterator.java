@@ -10,8 +10,6 @@ import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.indexing.INDArrayIndex;
 import org.nd4j.linalg.indexing.NDArrayIndex;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,16 +18,20 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public final class TwitterDataIterator implements DataSetIterator {
-    private static final Logger logger = LoggerFactory.getLogger(TwitterDataIterator.class);
+    private static final int INDEX_SENTIMENT = 2;
+    private static final int INDEX_TOPIC = 1;
+    private static final int INDEX_CONTENT = 3;
     private static final int NUMBER_OF_LABELS = 2;
-    private static final String LABEL_NEGATIVE = "-1";
-    private static final String LABEL_POSITIVE = "1";
-
+    private static final String LABEL_NEGATIVE = "negative";
+    private static final String LABEL_POSITIVE = "positive";
+    private static final int MAX_TOPIC_WORDS = 5;
     private final Collection<Tweet> allTweets;
+
     private final WordVectors wordVectors;
     private final int batchSize;
     private final int vectorSize;
     private final TokenizerFactory tokenizerFactory;
+    private final INDArray padding;
     private Iterator<Tweet> tweetIterator;
     private int cursor = 0;
 
@@ -38,19 +40,14 @@ public final class TwitterDataIterator implements DataSetIterator {
         this.allTweets = Files.readAllLines(dataPath)
                 .stream()
                 .map(s -> s.split("\t"))
-                .map(s -> new Tweet(s[2], getExpectedSentiment(s[0])))
+                .map(s -> new Tweet(s[INDEX_CONTENT], s[INDEX_TOPIC], getExpectedSentiment(s[INDEX_SENTIMENT])))
                 .collect(Collectors.toList());
         tweetIterator = allTweets.iterator();
         this.wordVectors = wordVectors;
         this.vectorSize = vectorSize;
         this.batchSize = batchSize;
-        tokenizerFactory = new DefaultTokenizerFactory();
-    }
-
-    private static Tweet tweetFromRow(String[] row) {
-        final String text = row[2];
-        final Sentiment expectedSentiment = getExpectedSentiment(row[0]);
-        return new Tweet(text, expectedSentiment);
+        this.tokenizerFactory = new DefaultTokenizerFactory();
+        this.padding = Nd4j.create(vectorSize);
     }
 
     private static Sentiment getExpectedSentiment(String sentiment) {
@@ -70,9 +67,22 @@ public final class TwitterDataIterator implements DataSetIterator {
         final List<List<String>> tokenizedTweets = new ArrayList<>(tweets.size());
         int maxLength = 0;
         for (Tweet tweet : tweets) {
-            final List<String> tokens = tokenizeTweet(tweet.getText());
+            final List<String> tokens = tokenizeText(tweet.getTopic());
+
+            //Only the first 5 words are "topic" -> trim the rest
+            while (tokens.size() > MAX_TOPIC_WORDS) {
+                tokens.remove(tokens.size() - 1);
+            }
+
+            //if there are no enough topic words -> add padding
+            while (tokens.size() < MAX_TOPIC_WORDS) {
+                tokens.add("");
+            }
+
+            //Append the rest of the tweet here
+            tokens.addAll(tokenizeText(tweet.getText()));
             tokenizedTweets.add(tokens);
-            maxLength = Math.max(maxLength, tokens.size());
+            maxLength = Math.max(maxLength, tokens.size() + 1);
         }
 
         INDArray features = Nd4j.create(tweets.size(), vectorSize, maxLength);
@@ -95,16 +105,18 @@ public final class TwitterDataIterator implements DataSetIterator {
             //Add word vector for each token
             for (int tokenIndex = 0; tokenIndex < tokens.size(); tokenIndex++) {
                 final String token = tokens.get(tokenIndex);
-                final INDArray vector = wordVectors.getWordVectorMatrix(token);
+                final INDArray vector = getWordVectorForToken(token);
                 features.put(new INDArrayIndex[]{
                         NDArrayIndex.point(tweetIndex),
                         NDArrayIndex.all(),
                         NDArrayIndex.point(tokenIndex)
                 }, vector);
 
-                //Mark that [tweet,token] is present - i.e. it is not padding
-                featureMaskIndexes[1] = tokenIndex;
-                featuresMask.putScalar(featureMaskIndexes, 1.0);
+                if (!token.isEmpty()) { //Handle padding
+                    //Mark that [tweet,token] is present - i.e. it is not padding
+                    featureMaskIndexes[1] = tokenIndex;
+                    featuresMask.putScalar(featureMaskIndexes, 1.0);
+                }
             }
 
             final int labelIndex = getLabelIndex(tweet);
@@ -127,6 +139,13 @@ public final class TwitterDataIterator implements DataSetIterator {
         return new DataSet(features, labels, featuresMask, labelsMask);
     }
 
+    private INDArray getWordVectorForToken(String token) {
+        if (token.isEmpty()) {
+            return padding;
+        }
+        return wordVectors.getWordVectorMatrix(token);
+    }
+
     private List<Tweet> readTweets(int numberOfTweets) {
         final List<Tweet> data = new ArrayList<>(numberOfTweets);
         for (int i = 0; i < numberOfTweets && tweetIterator.hasNext(); i++) {
@@ -136,7 +155,7 @@ public final class TwitterDataIterator implements DataSetIterator {
         return data;
     }
 
-    private List<String> tokenizeTweet(String tweet) {
+    private List<String> tokenizeText(String tweet) {
         final List<String> tokens = tokenizerFactory.create(tweet).getTokens();
         final Iterator<String> tokenIterator = tokens.iterator();
 

@@ -1,7 +1,6 @@
 package com.semeval.task4;
 
 import org.deeplearning4j.eval.Evaluation;
-import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
@@ -69,38 +68,32 @@ public abstract class AbstractNetworkTrainer {
              */
             Stream<String[]> preProcessingPipeline = lines.map(l -> l.split("\t+"))
                     /**
+                     * Handle only well formed rows
+                     */
+                    .filter(l -> l.length == 4)
+                    /**
                      * Some of the tweets are missing and "not available"
-                     * is set instead of teh tweet text. They must be removed
+                     * is set instead of the tweet text. They must be removed
                      */
                     .filter(l -> !l[3].equalsIgnoreCase("not available"))
 
                     /**
                      * Make sure the topic is in lower case
                      */
-                    .peek(l -> l[1] = l[1].toLowerCase(Locale.ENGLISH))
-
-                    /**
-                     * Replace the long text based classifications with
-                     * shorter number based ones in order to save memory
-                     */
-                    .peek(l -> l[2] = translateClassification(l[2]));
+                    .peek(l -> l[1] = l[1].toLowerCase(Locale.ENGLISH));
 
             /**
              * Run all configured preprocessors against the tweets
              */
             for (TweetPreprocessor preprocessor : preprocessors) {
-                preProcessingPipeline = preProcessingPipeline.peek(l -> {
-                    l[3] = preprocessor.preProcess(l[3]);
-                });
+                preProcessingPipeline = preProcessingPipeline.peek(l -> l[3] = preprocessor.preProcess(l[3]));
             }
 
             /**
              * Write out the preprocessed data
              */
             try (BufferedWriter out = Files.newBufferedWriter(preProcessedDataSet, StandardCharsets.UTF_8)) {
-                preProcessingPipeline.forEach(l -> {
-                    writePreprocessedData(out, l);
-                });
+                preProcessingPipeline.forEach(l -> writePreprocessedData(out, l));
             }
 
             return preProcessedDataSet;
@@ -109,21 +102,13 @@ public abstract class AbstractNetworkTrainer {
         }
     }
 
-    private String translateClassification(String classification) {
-        if (classification.equalsIgnoreCase(CLASSIFICATION_POSITIVE)) {
-            return POSITIVE_VALUE;
-        } else if (classification.equalsIgnoreCase(CLASSIFICATION_NEGATIVE)) {
-            return NEGATIVE_VALUE;
-        } else {
-            throw new IllegalStateException("Encountered unknown classification: " + classification);
-        }
-    }
-
     private void writePreprocessedData(BufferedWriter out, String[] row) {
         try {
-            out.write(row[2]);
+            out.write(row[0]);
             out.write("\t");
             out.write(row[1]);
+            out.write("\t");
+            out.write(row[2]);
             out.write("\t");
             out.write(row[3]);
             out.write("\n");
@@ -133,7 +118,7 @@ public abstract class AbstractNetworkTrainer {
     }
 
 
-    public final void train(int epochs, int batchSize) throws TrainingException {
+    public final void train(int epochs) throws TrainingException {
         try {
             if (!trainingStarted) {
                 final Path preProcessedTrainSet = preProcessDataSet(trainSet);
@@ -152,7 +137,7 @@ public abstract class AbstractNetworkTrainer {
         }
     }
 
-    public final Evaluation evaluate(int batchSize) throws TrainingException {
+    public final Evaluation evaluate() throws TrainingException {
         if (!trainingStarted) {
             throw new IllegalStateException("A network must be trained first");
         }
