@@ -118,7 +118,7 @@ public final class RnnNetworkTrainer extends AbstractNetworkTrainer {
         trainer.addPreprocessor(new RepeatingCharsPreprocessor());
         trainer.addPreprocessor(new ToLowerCasePreprocesor());
 
-        for (int i = 0; i < 24; i++) {
+        for (int i = 0; i < 8; i++) {
             System.out.println("\nEpoch: " + i);
             System.out.println("Training...");
             trainer.train(1);
